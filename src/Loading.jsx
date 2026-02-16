@@ -1,22 +1,13 @@
-import React, { useEffect, useState, useRef } from "react"
+import React, { useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
+import gsap from "gsap"
+import SplitType from "split-type"
 
 
 
 const phases = ["READY", "GET", "SET", "GO"]
 
-
-
-/* fixed positions around screen */
-const boxPositions = [
-
-  { top: "8%", left: "8%" },       // top left
-  { bottom: "8%", left: "8%" },    // bottom left
-  { top: "8%", right: "8%" },      // top right
-  { bottom: "8%", right: "8%" },   // bottom right
-  { top: "40%", right: "4%" }      // mid right
-
-]
+const colors = ["GREEN", "BLUE", "RED", "WHITE", "YELLOW"]
 
 
 
@@ -24,78 +15,118 @@ export default function Loading() {
 
   const navigate = useNavigate()
 
-  const [phaseIndex, setPhaseIndex] = useState(0)
+  const textRef = useRef()
 
-  const gunSound = useRef(null)
+  const colorRefs = useRef([])
+
+  const gun = useRef(null)
 
 
 
-  /* inject animations */
   useEffect(() => {
 
-    const style = document.createElement("style")
-
-    style.innerHTML = `
-
-      @keyframes spinBox {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-      }
-
-      @keyframes bgGlow {
-        0% { opacity: 0.15; }
-        100% { opacity: 0.35; }
-      }
-
-      @keyframes textFade {
-        0% { opacity: 0; transform: scale(0.7); }
-        100% { opacity: 1; transform: scale(1); }
-      }
-
-    `
-
-    document.head.appendChild(style)
-
-    return () => document.head.removeChild(style)
-
-  }, [])
+    gun.current = new Audio("/sounds/gun.mp3")
 
 
 
-  /* phase sequence */
-  useEffect(() => {
+    const tl = gsap.timeline()
 
-    gunSound.current = new Audio("/sounds/gun.mp3")
 
-    let index = 0
 
-    const interval = setInterval(() => {
+    /* READY GET SET GO animation */
 
-      if (index < phases.length) {
+    phases.forEach((word, i) => {
 
-        setPhaseIndex(index)
+      tl.call(() => {
 
-        gunSound.current.currentTime = 0
-        gunSound.current.play().catch(()=>{})
+        textRef.current.innerHTML = word
 
-        index++
+        const split = new SplitType(textRef.current, {
+          types: "chars"
+        })
 
-      }
-      else {
+        gun.current.currentTime = 0
+        gun.current.play().catch(()=>{})
 
-        clearInterval(interval)
+        gsap.fromTo(
+          split.chars,
+          {
+            opacity: 0,
+            y: 100,
+            scale: 0.5
+          },
+          {
+            opacity: 1,
+            y: 0,
+            scale: 1,
+            duration: 0.6,
+            stagger: 0.05,
+            ease: "power3.out"
+          }
+        )
 
-        setTimeout(() => {
+      })
 
-          navigate("/game")
+      tl.to({}, { duration: 1.5 })
 
-        }, 1000)
+      tl.to(textRef.current, {
+        opacity: 0,
+        duration: 0.4
+      })
 
-      }
+      tl.set(textRef.current, { opacity: 1 })
 
-    }, 1500)
+    })
 
-    return () => clearInterval(interval)
+
+
+    /* COLOR DECIDING ANIMATION */
+
+    tl.call(() => {
+
+      colorRefs.current.forEach((el, i) => {
+
+        gsap.fromTo(
+          el,
+          {
+            opacity: 0,
+            scale: 0,
+            rotation: 180
+          },
+          {
+            opacity: 1,
+            scale: 1,
+            rotation: 0,
+            duration: 1,
+            ease: "elastic.out(1,0.5)"
+          }
+        )
+
+        gsap.to(el, {
+          x: () => Math.random() * 400 - 200,
+          y: () => Math.random() * 300 - 150,
+          rotation: () => Math.random() * 360,
+          duration: 2,
+          ease: "power2.inOut"
+        })
+
+      })
+
+    })
+
+
+
+    tl.to({}, { duration: 3 })
+
+
+
+    tl.call(() => {
+
+      navigate("/game")
+
+    })
+
+
 
   }, [])
 
@@ -105,52 +136,65 @@ export default function Loading() {
 
     <div className="fixed inset-0 bg-black overflow-hidden">
 
-      {/* dynamic dark green background glow */}
+      {/* dynamic dark green background */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(circle at center, rgba(0,255,120,0.2), black 70%)",
-          animation: "bgGlow 3s infinite alternate"
+            "radial-gradient(circle at center, rgba(0,255,100,0.2), black 70%)",
+          animation: "pulseBg 3s infinite alternate"
         }}
       />
 
 
 
-      {/* 5 spinning boxes always visible */}
-      {boxPositions.map((pos, i) => (
+      {/* READY GET SET GO */}
+      <div
+        ref={textRef}
+        className="absolute text-green-400"
+        style={{
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          fontSize: "90px",
+          fontFamily: "Times New Roman",
+          letterSpacing: "12px"
+        }}
+      />
+
+
+
+      {/* COLORS */}
+      {colors.map((color, i) => (
 
         <div
           key={i}
-          className="absolute border border-green-400 flex items-center justify-center text-green-400"
+          ref={el => colorRefs.current[i] = el}
+          className="absolute text-green-400"
           style={{
-
-            width: "140px",
-            height: "140px",
-
+            top: "50%",
+            left: "50%",
+            fontSize: "36px",
             fontFamily: "Times New Roman",
-            fontSize: "22px",
-
-            animation: "spinBox 2s linear infinite",
-
-            boxShadow: "0 0 20px rgba(0,255,136,0.5)",
-
-            ...pos
-
+            opacity: 0
           }}
         >
-
-          <div
-            style={{
-              animation: "textFade 0.3s ease"
-            }}
-          >
-            {phases[Math.min(phaseIndex, phases.length - 1)]}
-          </div>
-
+          {color}
         </div>
 
       ))}
+
+
+
+      {/* injected animation */}
+      <style>
+        {`
+          @keyframes pulseBg {
+            from { opacity: 0.2; }
+            to { opacity: 0.4; }
+          }
+        `}
+      </style>
 
     </div>
 
