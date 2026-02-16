@@ -329,7 +329,7 @@ export default function SortTheBallsBackground() {
     /* navigate after zoom animation */
     setTimeout(() => {
 
-      navigate("/loading")
+      navigate("/game")
 
     }, 1200)
 
