@@ -11,7 +11,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Landingpage />} />
          <Route path="/loading" element={<Loading />} />
-
+        <Route path="/game" element={<SortTheBalls />} />
       </Routes>
     </BrowserRouter>
   );
