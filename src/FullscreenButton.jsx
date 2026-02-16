@@ -1,6 +1,10 @@
-import React from "react"
+import React, { useEffect, useState } from "react"
 
 export default function FullscreenButton() {
+
+  const [isFullscreen, setIsFullscreen] = useState(
+    !!document.fullscreenElement
+  )
 
   const enterFullscreen = () => {
 
@@ -18,6 +22,23 @@ export default function FullscreenButton() {
 
   }
 
+  // listen for fullscreen change
+  useEffect(() => {
+
+    const handleChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+
+    document.addEventListener("fullscreenchange", handleChange)
+
+    return () =>
+      document.removeEventListener("fullscreenchange", handleChange)
+
+  }, [])
+
+  // hide icon when fullscreen
+  if (isFullscreen) return null
+
   return (
     <div
       onClick={enterFullscreen}
@@ -33,7 +54,6 @@ export default function FullscreenButton() {
         border: "1px solid cyan"
       }}
     >
-      {/* fullscreen icon */}
       <svg
         xmlns="http://www.w3.org/2000/svg"
         width="26"
