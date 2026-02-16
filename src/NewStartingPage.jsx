@@ -124,15 +124,27 @@ const createColorPalette = () => {
   return shuffleArray(palette)
 }
 
-/* ================= ENERGY SPHERE WITH ANIMATION ================= */
+// EaseInOut cubic
+const easeInOutCubic = (t) => {
+  return t < 0.5
+    ? 4 * t * t * t
+    : 1 - Math.pow(-2 * t + 2, 3) / 2
+}
 
-function EnergySphere({ animationState, onAnimationComplete }) {
+// EaseOut cubic
+const easeOutCubic = (t) => {
+  return 1 - Math.pow(1 - t, 3)
+}
+
+/* ================= ENERGY SPHERE WITH MAGNETIC COLLAPSE ================= */
+
+function EnergySphere({ animationState, onCollapseComplete }) {
   const pointsRef = useRef()
   const count = 5000
   
   const explosionProgress = useRef(0)
-  const formationProgress = useRef(0)
-  const floatTime = useRef(0)
+  const collapseProgress = useRef(0)
+  const idleRotation = useRef(0)
 
   // Initial sphere positions and particle data
   const particleData = useMemo(() => {
@@ -175,74 +187,54 @@ function EnergySphere({ animationState, onAnimationComplete }) {
     return { positions, colors, velocities, speeds, delays }
   }, [])
 
-  // Matrix target positions
-  const matrixTargets = useMemo(() => {
-    const targets = new Float32Array(count * 3)
-    const targetColors = new Float32Array(count * 3)
+  // Collapse targets - each particle assigned to a grid center
+  const collapseTargets = useMemo(() => {
+    const targets = []
     const gridSize = 5
-    const spacing = 1.2
-    const particlesPerCluster = count / 25 // 200 particles per cluster
-    const colorPalette = createColorPalette()
+    const spacing = 1.4
+    const particlesPerCell = count / 25 // 200 particles per cell
     
     let particleIndex = 0
     
     for (let row = 0; row < gridSize; row++) {
       for (let col = 0; col < gridSize; col++) {
-        const clusterIndex = row * gridSize + col
         const centerX = (col - gridSize / 2 + 0.5) * spacing
         const centerY = (row - gridSize / 2 + 0.5) * spacing
-        const color = colorPalette[clusterIndex]
+        const centerZ = 0
         
-        // Distribute particles in circular cluster
-        for (let p = 0; p < particlesPerCluster; p++) {
-          const angle = (p / particlesPerCluster) * Math.PI * 2
-          const radius = Math.sqrt(Math.random()) * 0.18 // Circular distribution
-          const offsetX = Math.cos(angle) * radius
-          const offsetY = Math.sin(angle) * radius
-          const offsetZ = (Math.random() - 0.5) * 0.08
-          
-          targets[particleIndex * 3] = centerX + offsetX
-          targets[particleIndex * 3 + 1] = centerY + offsetY
-          targets[particleIndex * 3 + 2] = offsetZ
-          
-          targetColors[particleIndex * 3] = color.r
-          targetColors[particleIndex * 3 + 1] = color.g
-          targetColors[particleIndex * 3 + 2] = color.b
-          
+        // Assign particles to this grid center
+        for (let p = 0; p < particlesPerCell; p++) {
+          targets.push(new THREE.Vector3(centerX, centerY, centerZ))
           particleIndex++
         }
       }
     }
     
-    return { targets, targetColors }
+    return targets
   }, [])
 
-  // Store current state for interpolation
-  const currentPositions = useRef(new Float32Array(particleData.positions))
-  const currentSizes = useRef(new Float32Array(count).fill(0.07))
+  // Store explosion positions for collapse phase
+  const explosionPositions = useRef(new Float32Array(count * 3))
 
   useFrame((state, delta) => {
     if (!pointsRef.current) return
     
     const positions = pointsRef.current.geometry.attributes.position.array
-    const colors = pointsRef.current.geometry.attributes.color.array
     const time = state.clock.getElapsedTime()
 
     if (animationState === 'idle') {
       // Slow rotation
-      pointsRef.current.rotation.y = time * 0.15
+      idleRotation.current = time * 0.15
+      pointsRef.current.rotation.y = idleRotation.current
       
     } else if (animationState === 'explode') {
       // Explosion animation
       explosionProgress.current = Math.min(explosionProgress.current + delta / 1.2, 1)
       
-      // EaseOut cubic
-      const eased = 1 - Math.pow(1 - explosionProgress.current, 3)
-      
       for (let i = 0; i < count; i++) {
         const delay = particleData.delays[i]
         const adjustedProgress = Math.max(0, Math.min(1, (explosionProgress.current - delay) / (1 - delay)))
-        const easedProgress = 1 - Math.pow(1 - adjustedProgress, 3)
+        const easedProgress = easeOutCubic(adjustedProgress)
         
         const velocity = particleData.velocities[i]
         const speed = particleData.speeds[i]
@@ -253,83 +245,63 @@ function EnergySphere({ animationState, onAnimationComplete }) {
         positions[i3 + 1] = particleData.positions[i3 + 1] + velocity.y * explosionDistance * easedProgress
         positions[i3 + 2] = particleData.positions[i3 + 2] + velocity.z * explosionDistance * easedProgress
         
-        // Store for next phase
-        currentPositions.current[i3] = positions[i3]
-        currentPositions.current[i3 + 1] = positions[i3 + 1]
-        currentPositions.current[i3 + 2] = positions[i3 + 2]
-      }
-      
-      // Shrink particles and add glow
-      const sizeMultiplier = 1 - eased * 0.4
-      pointsRef.current.material.size = 0.07 * sizeMultiplier
-      pointsRef.current.material.opacity = 0.8 + eased * 0.2 // Glow effect
-      
-      if (explosionProgress.current >= 1) {
-        onAnimationComplete()
-      }
-      
-    } else if (animationState === 'formMatrix') {
-      // Formation animation
-      formationProgress.current = Math.min(formationProgress.current + delta / 2.5, 1)
-      
-      for (let i = 0; i < count; i++) {
-        const delay = particleData.delays[i]
-        const adjustedProgress = Math.max(0, Math.min(1, (formationProgress.current - delay * 0.3) / (1 - delay * 0.3)))
-        
-        const i3 = i * 3
-        
-        // Smooth lerp to matrix positions
-        positions[i3] = THREE.MathUtils.lerp(
-          currentPositions.current[i3],
-          matrixTargets.targets[i3],
-          adjustedProgress
-        )
-        positions[i3 + 1] = THREE.MathUtils.lerp(
-          currentPositions.current[i3 + 1],
-          matrixTargets.targets[i3 + 1],
-          adjustedProgress
-        )
-        positions[i3 + 2] = THREE.MathUtils.lerp(
-          currentPositions.current[i3 + 2],
-          matrixTargets.targets[i3 + 2],
-          adjustedProgress
-        )
-        
-        // Transition colors
-        colors[i3] = THREE.MathUtils.lerp(
-          particleData.colors[i3],
-          matrixTargets.targetColors[i3],
-          adjustedProgress
-        )
-        colors[i3 + 1] = THREE.MathUtils.lerp(
-          particleData.colors[i3 + 1],
-          matrixTargets.targetColors[i3 + 1],
-          adjustedProgress
-        )
-        colors[i3 + 2] = THREE.MathUtils.lerp(
-          particleData.colors[i3 + 2],
-          matrixTargets.targetColors[i3 + 2],
-          adjustedProgress
-        )
-      }
-      
-      // Grow particles back
-      const size = THREE.MathUtils.lerp(0.07 * 0.6, 0.08, formationProgress.current)
-      pointsRef.current.material.size = size
-      pointsRef.current.material.opacity = THREE.MathUtils.lerp(1, 0.9, formationProgress.current)
-      
-      // Subtle floating animation once mostly formed
-      if (formationProgress.current >= 0.92) {
-        floatTime.current += delta
-        
-        for (let i = 0; i < count; i++) {
-          const i3 = i * 3
-          const floatOffset = Math.sin(floatTime.current * 1.5 + i * 0.008) * 0.012
-          positions[i3 + 2] = matrixTargets.targets[i3 + 2] + floatOffset
+        // Store final explosion positions
+        if (explosionProgress.current >= 1) {
+          explosionPositions.current[i3] = positions[i3]
+          explosionPositions.current[i3 + 1] = positions[i3 + 1]
+          explosionPositions.current[i3 + 2] = positions[i3 + 2]
         }
       }
       
-      pointsRef.current.geometry.attributes.color.needsUpdate = true
+      // Shrink particles slightly
+      const eased = easeOutCubic(explosionProgress.current)
+      const sizeMultiplier = 1 - eased * 0.3
+      pointsRef.current.material.size = 0.07 * sizeMultiplier
+      pointsRef.current.material.opacity = 0.8 + eased * 0.2
+      
+    } else if (animationState === 'collapse') {
+      // Magnetic collapse animation
+      collapseProgress.current = Math.min(collapseProgress.current + delta / 1.5, 1)
+      
+      const easedCollapse = easeInOutCubic(collapseProgress.current)
+      
+      for (let i = 0; i < count; i++) {
+        const delay = particleData.delays[i] * 0.2 // Subtle stagger
+        const adjustedProgress = Math.max(0, Math.min(1, (collapseProgress.current - delay) / (1 - delay)))
+        const easedProgress = easeInOutCubic(adjustedProgress)
+        
+        const i3 = i * 3
+        const target = collapseTargets[i]
+        
+        // Lerp from explosion position to collapse target
+        positions[i3] = THREE.MathUtils.lerp(
+          explosionPositions.current[i3],
+          target.x,
+          easedProgress
+        )
+        positions[i3 + 1] = THREE.MathUtils.lerp(
+          explosionPositions.current[i3 + 1],
+          target.y,
+          easedProgress
+        )
+        positions[i3 + 2] = THREE.MathUtils.lerp(
+          explosionPositions.current[i3 + 2],
+          target.z,
+          easedProgress
+        )
+      }
+      
+      // Gradually reduce size and opacity during collapse
+      const shrinkStart = 0.3 // Start shrinking at 30% progress
+      const shrinkProgress = Math.max(0, (easedCollapse - shrinkStart) / (1 - shrinkStart))
+      
+      pointsRef.current.material.size = THREE.MathUtils.lerp(0.07 * 0.7, 0.02, shrinkProgress)
+      pointsRef.current.material.opacity = THREE.MathUtils.lerp(1, 0, shrinkProgress)
+      
+      // Trigger sphere emergence at 80%
+      if (collapseProgress.current >= 1) {
+        onCollapseComplete()
+      }
     }
     
     pointsRef.current.geometry.attributes.position.needsUpdate = true
@@ -351,6 +323,115 @@ function EnergySphere({ animationState, onAnimationComplete }) {
         blending={THREE.AdditiveBlending}
       />
     </Points>
+  )
+}
+
+/* ================= INSTANCED SPHERE MATRIX ================= */
+
+function SphereMatrix({ animationState }) {
+  const meshRef = useRef()
+  const count = 25
+  const gridSize = 5
+  const spacing = 1.4
+  
+  const emergenceProgress = useRef(0)
+  const floatTime = useRef(0)
+  const hasStartedEmerging = useRef(false)
+
+  // Grid data with colors
+  const gridData = useMemo(() => {
+    const colorPalette = createColorPalette()
+    const positions = []
+    const colors = []
+    
+    for (let row = 0; row < gridSize; row++) {
+      for (let col = 0; col < gridSize; col++) {
+        const x = (col - gridSize / 2 + 0.5) * spacing
+        const y = (row - gridSize / 2 + 0.5) * spacing
+        const z = 0
+        
+        positions.push(new THREE.Vector3(x, y, z))
+        colors.push(colorPalette[row * gridSize + col])
+      }
+    }
+    
+    return { positions, colors }
+  }, [])
+
+  useFrame((state, delta) => {
+    if (!meshRef.current) return
+    
+    const time = state.clock.getElapsedTime()
+    
+    if (animationState === 'matrix') {
+      if (!hasStartedEmerging.current) {
+        hasStartedEmerging.current = true
+      }
+      
+      // Emergence animation
+      emergenceProgress.current = Math.min(emergenceProgress.current + delta / 1.0, 1)
+      
+      const easedEmergence = easeInOutCubic(emergenceProgress.current)
+      
+      // Update each sphere instance
+      const tempMatrix = new THREE.Matrix4()
+      const tempColor = new THREE.Color()
+      
+      for (let i = 0; i < count; i++) {
+        const position = gridData.positions[i]
+        const color = gridData.colors[i]
+        
+        // Scale from 0 to 1
+        const scale = easedEmergence * 0.35
+        
+        tempMatrix.makeScale(scale, scale, scale)
+        tempMatrix.setPosition(position.x, position.y, position.z)
+        
+        meshRef.current.setMatrixAt(i, tempMatrix)
+        
+        // Set color
+        tempColor.copy(color)
+        meshRef.current.setColorAt(i, tempColor)
+      }
+      
+      meshRef.current.instanceMatrix.needsUpdate = true
+      if (meshRef.current.instanceColor) {
+        meshRef.current.instanceColor.needsUpdate = true
+      }
+      
+      // Subtle group float after full emergence
+      if (emergenceProgress.current >= 1) {
+        floatTime.current += delta
+        const floatOffset = Math.sin(floatTime.current * 0.8) * 0.15
+        meshRef.current.position.z = floatOffset
+      }
+    }
+  })
+
+  // Initialize instances
+  useMemo(() => {
+    if (meshRef.current) {
+      const tempMatrix = new THREE.Matrix4()
+      tempMatrix.makeScale(0, 0, 0)
+      
+      for (let i = 0; i < count; i++) {
+        meshRef.current.setMatrixAt(i, tempMatrix)
+      }
+      
+      meshRef.current.instanceMatrix.needsUpdate = true
+    }
+  }, [])
+
+  return (
+    <instancedMesh ref={meshRef} args={[null, null, count]}>
+      <sphereGeometry args={[1, 32, 32]} />
+      <meshStandardMaterial
+        roughness={0.4}
+        metalness={0.2}
+        emissive="#111111"
+        emissiveIntensity={0.3}
+      />
+    </instancedMesh>
   )
 }
 
@@ -429,19 +510,99 @@ function StartButton({ onStart, visible }) {
   )
 }
 
-/* ================= MAIN ================= */
+/* ================= SCENE CONTROLLER ================= */
 
-export default function SortTheBallsBackground() {
+function Scene() {
   const [animationState, setAnimationState] = useState('idle')
+  const stateChangeTriggered = useRef({
+    collapse: false,
+    matrix: false
+  })
 
   function handleStart() {
     if (animationState === 'idle') {
       setAnimationState('explode')
+      
+      // Trigger collapse after explosion duration
+      setTimeout(() => {
+        if (!stateChangeTriggered.current.collapse) {
+          stateChangeTriggered.current.collapse = true
+          setAnimationState('collapse')
+        }
+      }, 1200)
     }
   }
 
-  function handleExplosionComplete() {
-    setAnimationState('formMatrix')
+  function handleCollapseComplete() {
+    if (!stateChangeTriggered.current.matrix) {
+      stateChangeTriggered.current.matrix = true
+      setAnimationState('matrix')
+    }
+  }
+
+  return (
+    <>
+      <DeepSpaceStars />
+      
+      {/* Particles - visible during idle, explode, and collapse */}
+      {animationState !== 'matrix' && (
+        <EnergySphere 
+          animationState={animationState}
+          onCollapseComplete={handleCollapseComplete}
+        />
+      )}
+      
+      {/* Spheres - only emerge during matrix state */}
+      <SphereMatrix animationState={animationState} />
+      
+      {/* Lighting for spheres */}
+      <ambientLight intensity={0.4} />
+      <directionalLight position={[10, 10, 5]} intensity={0.8} />
+      <pointLight position={[-10, -10, -5]} intensity={0.3} color="#00ff88" />
+      
+      {/* UI overlays */}
+      <Html>
+        <Header />
+        <StartButton onStart={handleStart} visible={animationState === 'idle'} />
+      </Html>
+    </>
+  )
+}
+
+/* ================= HTML WRAPPER ================= */
+
+function Html({ children }) {
+  return <div>{children}</div>
+}
+
+/* ================= MAIN ================= */
+
+export default function SortTheBallsBackground() {
+  const [animationState, setAnimationState] = useState('idle')
+  const stateChangeTriggered = useRef({
+    collapse: false,
+    matrix: false
+  })
+
+  function handleStart() {
+    if (animationState === 'idle') {
+      setAnimationState('explode')
+      
+      // Trigger collapse after explosion duration
+      setTimeout(() => {
+        if (!stateChangeTriggered.current.collapse) {
+          stateChangeTriggered.current.collapse = true
+          setAnimationState('collapse')
+        }
+      }, 1200)
+    }
+  }
+
+  function handleCollapseComplete() {
+    if (!stateChangeTriggered.current.matrix) {
+      stateChangeTriggered.current.matrix = true
+      setAnimationState('matrix')
+    }
   }
 
   return (
@@ -458,10 +619,22 @@ export default function SortTheBallsBackground() {
         camera={{ position: [0, 0, 20], fov: 60 }}
       >
         <DeepSpaceStars />
-        <EnergySphere 
-          animationState={animationState}
-          onAnimationComplete={handleExplosionComplete}
-        />
+        
+        {/* Particles - visible during idle, explode, and collapse */}
+        {animationState !== 'matrix' && (
+          <EnergySphere 
+            animationState={animationState}
+            onCollapseComplete={handleCollapseComplete}
+          />
+        )}
+        
+        {/* Spheres - emerge during matrix state */}
+        <SphereMatrix animationState={animationState} />
+        
+        {/* Lighting for spheres */}
+        <ambientLight intensity={0.4} />
+        <directionalLight position={[10, 10, 5]} intensity={0.8} />
+        <pointLight position={[-10, -10, -5]} intensity={0.3} color="#00ff88" />
       </Canvas>
 
       <Header />

@@ -6,7 +6,7 @@ import Landingpage from "./Startingpage";
 import Loading from "./Loading";
 import FullscreenButton from "./FullscreenButton";
 import SortTheBallsBackground from "./NewStartingPage";
-
+import NewGamePage from "./NewGamePage";
 function App() {
   return (
     <BrowserRouter>
@@ -16,6 +16,7 @@ function App() {
         <Route path="/loading" element={<Loading />} />
         <Route path="/game" element={<SortTheBalls />} />
         <Route path="/new" element={<SortTheBallsBackground/>}/>
+        <Route path="/gaming" element={<NewGamePage/>}/>
       </Routes>
 
       <FullscreenButton />
