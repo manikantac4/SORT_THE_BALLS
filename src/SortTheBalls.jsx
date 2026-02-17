@@ -141,16 +141,20 @@ function CountdownParticles({ onTimeUp, isRunning }) {
   const intervalRef = useRef(null);
 
   const tickSound = useMemo(() => {
-    const audio = new Audio("/sounds/tick.mp3");
-    audio.volume = 0.5;
-    return audio;
-  }, []);
+    const audio = new Audio()
+    audio.src = "/sounds/tick.mp3"
+    audio.volume = 0.5
+    audio.preload = "auto"
+    return audio
+  }, [])
 
   const endSound = useMemo(() => {
-    const audio = new Audio("/sounds/end.mp3");
-    audio.volume = 0.7;
-    return audio;
-  }, []);
+    const audio = new Audio()
+    audio.src = "/sounds/end.mp3"
+    audio.volume = 0.7
+    audio.preload = "auto"
+    return audio
+  }, [])
 
   useEffect(() => {
     const unlockAudio = () => {
@@ -233,15 +237,29 @@ function CountdownParticles({ onTimeUp, isRunning }) {
       current--;
 
       if (current >= 0) {
-        setDisplayText(current.toString());
-        tickSound.currentTime = 0;
-        tickSound.play().catch(() => {});
+        setDisplayText(current.toString())
+        if (current < 30) {
+          // Play tick sound
+          tickSound.currentTime = 0
+          const playPromise = tickSound.play()
+          if (playPromise !== undefined) {
+            playPromise.catch(error => {
+              console.warn("Tick sound error:", error)
+            })
+          }
+        }
       }
 
       if (current === 0) {
-        endSound.currentTime = 0;
-        endSound.play().catch(() => {});
-        setTimeout(() => onTimeUp(), 100);
+        console.log("Time up triggered - playing end sound")
+        endSound.currentTime = 0
+        const playPromise = endSound.play()
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            console.warn("End sound error:", error)
+          })
+        }
+        setTimeout(() => onTimeUp(), 100)
       }
 
       if (current < 0) clearInterval(intervalRef.current);
@@ -333,10 +351,11 @@ function IntroPhase({ pattern, isShuffling }) {
           transition: "opacity 0.5s ease-out",
         }}
       >
-        <h1
-          className="font-bold text-cyan-400 tracking-widest mb-2"
+        <h1 
+          className="font-bold tracking-widest mb-2"
           style={{
             fontSize: "clamp(1.5rem, 5vw, 4rem)",
+            color: "#22c55e"
           }}
         >
           MEMORY MATRIX
@@ -364,7 +383,7 @@ function SplitView({ pattern, gameState, onTimeUp }) {
     >
       {/* LEFT: 3D Matrix Pattern */}
       <div
-        className="w-full lg:w-1/2 h-1/2 lg:h-full relative border-b lg:border-b-0 lg:border-r border-cyan-500/10"
+        className="w-full lg:w-1/2 h-1/2 lg:h-full relative border-b lg:border-b-0 lg:border-r border-green-500/10"
         style={{
           opacity: isVisible ? 1 : 0,
           transform: isVisible ? "translateX(0)" : "translateX(-100px)",
@@ -393,6 +412,38 @@ function SplitView({ pattern, gameState, onTimeUp }) {
           <p className="text-gray-500 text-xs mt-2">30 seconds</p>
         </div>
       </div>
+
+      {/* CENTER: Refresh Button - positioned in the middle */}
+      <button
+        onClick={onRefresh}
+        className="absolute bottom-12 left-1/2 transform -translate-x-1/2 pointer-events-auto z-20"
+        style={{
+          background: "transparent",
+          border: "2px solid #22c55e",
+          color: "#22c55e",
+          padding: "10px 24px",
+          borderRadius: "8px",
+          fontSize: "clamp(0.75rem, 1.5vw, 0.95rem)",
+          fontWeight: "600",
+          letterSpacing: "0.05em",
+          cursor: "pointer",
+          transition: "all 0.3s ease",
+          textTransform: "uppercase",
+          fontFamily: "'Times New Roman', serif",
+        }}
+        onMouseEnter={(e) => {
+          e.target.style.background = "rgba(34, 197, 94, 0.15)";
+          e.target.style.boxShadow = "0 0 12px rgba(34, 197, 94, 0.5)";
+          e.target.style.transform = "translateX(-50%) scale(1.05)";
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.background = "transparent";
+          e.target.style.boxShadow = "none";
+          e.target.style.transform = "translateX(-50%) scale(1)";
+        }}
+      >
+        ↻ REFRESH
+      </button>
 
       {/* RIGHT: Timer Particle System */}
       <div
@@ -516,7 +567,7 @@ function TimeUpOverlay({ isVisible }) {
         <div
           className="h-full rounded-full"
           style={{
-            background: "linear-gradient(90deg, #a855f7, #06b6d4)",
+            background: "linear-gradient(90deg, #22c55e, #16a34a)",
             width: isVisible ? "100%" : "0%",
             transition: isVisible ? "width 10000ms linear" : "width 0ms",
           }}
@@ -568,6 +619,10 @@ export default function GamePage() {
     }, 10000);
   }, [navigate]);
 
+  const handleRefresh = useCallback(() => {
+    navigate("/")
+  }, [navigate])
+
   return (
     <div className="w-full h-screen bg-black overflow-hidden relative">
       {/* Background gradient */}
@@ -581,7 +636,7 @@ export default function GamePage() {
 
       {/* PHASE 1: Full-screen intro with 3D shuffle animation */}
       {gameState === "intro" && (
-        <IntroPhase pattern={pattern} isShuffling={isShuffling} />
+        <IntroPhase pattern={pattern} isShuffling={isShuffling} onRefresh={handleRefresh} />
       )}
 
       {/* PHASE 2: Split view (left 3D matrix, right timer) */}
@@ -590,6 +645,7 @@ export default function GamePage() {
           pattern={pattern}
           gameState={gameState}
           onTimeUp={handleTimeUp}
+          onRefresh={handleRefresh}
         />
       )}
 
