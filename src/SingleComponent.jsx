@@ -168,7 +168,6 @@ function EnergySphere({ phase, onResetScale }) {
     return { sphere, colors };
   }, []);
 
-  // Reset scale immediately when transitioning back to landing
   useEffect(() => {
     if (phase === PHASE.LANDING && ref.current && onResetScale) {
       ref.current.scale.set(1, 1, 1);
@@ -187,7 +186,6 @@ function EnergySphere({ phase, onResetScale }) {
       ref.current.scale.y += (20 - ref.current.scale.y) * LERP_FACTORS.SPHERE_SCALE;
       ref.current.scale.z += (20 - ref.current.scale.z) * LERP_FACTORS.SPHERE_SCALE;
     } else if (phase === PHASE.LANDING) {
-      // Fast recovery if coming from zoomed state
       const currentScale = ref.current.scale.x;
       const lerpSpeed = currentScale > 5 ? 0.15 : LERP_FACTORS.SPHERE_SCALE;
       
@@ -263,7 +261,7 @@ function Ball3D({ position, targetPosition, color, isAnimating }) {
 }
 
 /* ================= 3D MATRIX SCENE ================= */
-function Matrix3DScene({ pattern, isAnimating, phase, cameraOffset = 0 }) {
+function Matrix3DScene({ pattern, isAnimating, phase }) {
   const groupRef = useRef();
 
   const ballPositions = useMemo(() => {
@@ -306,9 +304,6 @@ function Matrix3DScene({ pattern, isAnimating, phase, cameraOffset = 0 }) {
     groupRef.current.scale.x += (targetScale - groupRef.current.scale.x) * LERP_FACTORS.MATRIX_SCALE;
     groupRef.current.scale.y += (targetScale - groupRef.current.scale.y) * LERP_FACTORS.MATRIX_SCALE;
     groupRef.current.scale.z += (targetScale - groupRef.current.scale.z) * LERP_FACTORS.MATRIX_SCALE;
-
-    // Apply camera offset for split view
-    groupRef.current.position.x = cameraOffset;
   });
 
   return (
@@ -331,16 +326,14 @@ function Matrix3DScene({ pattern, isAnimating, phase, cameraOffset = 0 }) {
 }
 
 /* ================= COUNTDOWN PARTICLES ================= */
-function CountdownParticles({ onTimeUp, cameraOffset = 0 }) {
+function CountdownParticles({ onTimeUp, phase }) {
   const ref = useRef();
-  const groupRef = useRef();
   const count = PARTICLE_COUNTS.COUNTDOWN;
   const [displayText, setDisplayText] = useState("30");
   const [audioReady, setAudioReady] = useState(false);
   const intervalRef = useRef(null);
   const audioUnlockAttemptedRef = useRef(false);
 
-  // Stable audio references - created once and reused
   const audioRef = useRef(null);
 
   useEffect(() => {
@@ -349,12 +342,17 @@ function CountdownParticles({ onTimeUp, cameraOffset = 0 }) {
         tick: new Audio("/sounds/tick.mp3"),
         end: new Audio("/sounds/end.mp3"),
       };
+      // Set up audio properties for faster playback
       audioRef.current.tick.volume = 0.5;
+      audioRef.current.tick.preload = "auto";
+      audioRef.current.tick.crossOrigin = "anonymous";
+      
       audioRef.current.end.volume = 0.7;
+      audioRef.current.end.preload = "auto";
+      audioRef.current.end.crossOrigin = "anonymous";
     }
 
     return () => {
-      // Cleanup audio on unmount
       if (audioRef.current) {
         audioRef.current.tick.pause();
         audioRef.current.end.pause();
@@ -365,7 +363,6 @@ function CountdownParticles({ onTimeUp, cameraOffset = 0 }) {
     };
   }, []);
 
-  // Audio unlock - runs once
   useEffect(() => {
     if (audioUnlockAttemptedRef.current) return;
 
@@ -375,21 +372,35 @@ function CountdownParticles({ onTimeUp, cameraOffset = 0 }) {
       audioUnlockAttemptedRef.current = true;
       
       const tick = audioRef.current.tick;
+      const end = audioRef.current.end;
+      
+      // Unlock tick sound
       tick.volume = 0;
       tick.play()
         .then(() => {
           tick.pause();
           tick.currentTime = 0;
           tick.volume = 0.5;
+        })
+        .catch(() => {});
+
+      // Unlock end sound
+      end.volume = 0;
+      end.play()
+        .then(() => {
+          end.pause();
+          end.currentTime = 0;
+          end.volume = 0.7;
+          // Audio is ready, now start countdown
           setAudioReady(true);
         })
-        .catch((err) => {
-          console.warn("Audio unlock failed:", err);
-          // Still set ready to allow countdown to work
+        .catch(() => {
+          // Audio failed but allow countdown anyway
           setAudioReady(true);
         });
     };
 
+    // Unlock on first click only
     window.addEventListener("click", unlockAudio, { once: true });
 
     return () => {
@@ -445,44 +456,53 @@ function CountdownParticles({ onTimeUp, cameraOffset = 0 }) {
 
   const [targetPositions, setTargetPositions] = useState(randomPositions);
 
-  // Countdown logic - stable dependencies
   useEffect(() => {
-    // Always reset display on mount
+    // Phase change effect - nothing needed here
+  }, [phase]);
+
+  useEffect(() => {
     setDisplayText("30");
 
+    // Wait for audio to be ready (click happened) before starting countdown
     if (!audioReady) return;
 
     let current = TIMING.COUNTDOWN_DURATION;
     setDisplayText(String(current));
 
-    intervalRef.current = setInterval(() => {
-      current--;
+    // Start countdown after 1 second delay to show 30 first
+    const startCountdownTimeout = setTimeout(() => {
+      intervalRef.current = setInterval(() => {
+        current--;
 
-      if (current >= 0) {
-        setDisplayText(String(current));
-        if (audioRef.current?.tick) {
-          audioRef.current.tick.currentTime = 0;
-          audioRef.current.tick.play().catch(() => {});
+        if (current >= 0) {
+          setDisplayText(String(current));
+          // Play tick sound on each second
+          if (audioRef.current?.tick) {
+            audioRef.current.tick.currentTime = 0;
+            audioRef.current.tick.play().catch(() => {});
+          }
         }
-      }
 
-      if (current === 0) {
-        if (audioRef.current?.end) {
-          audioRef.current.end.currentTime = 0;
-          audioRef.current.end.play().catch(() => {});
+        if (current === 0) {
+          // Play end sound when reaching 0
+          if (audioRef.current?.end) {
+            audioRef.current.end.currentTime = 0;
+            audioRef.current.end.play().catch(() => {});
+          }
+          clearInterval(intervalRef.current);
+          setTimeout(() => {
+            onTimeUp();
+          }, TIMING.TIME_UP_CALLBACK_DELAY);
         }
-        // Use timeout to ensure audio plays before callback
-        setTimeout(() => {
-          onTimeUp();
-        }, TIMING.TIME_UP_CALLBACK_DELAY);
-      }
 
-      if (current < 0) {
-        clearInterval(intervalRef.current);
-      }
+        if (current < 0) {
+          clearInterval(intervalRef.current);
+        }
+      }, 1000);
     }, 1000);
 
     return () => {
+      clearTimeout(startCountdownTimeout);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -490,14 +510,13 @@ function CountdownParticles({ onTimeUp, cameraOffset = 0 }) {
     };
   }, [audioReady, onTimeUp]);
 
-  // Text shape morphing
   useEffect(() => {
     const shape = createTextShape(displayText);
     setTargetPositions(shape);
   }, [displayText, createTextShape]);
 
   useFrame(() => {
-    if (!ref.current || !groupRef.current) return;
+    if (!ref.current) return;
 
     const positions = ref.current.geometry.attributes.position.array;
     for (let i = 0; i < count * 3; i++) {
@@ -508,24 +527,19 @@ function CountdownParticles({ onTimeUp, cameraOffset = 0 }) {
       );
     }
     ref.current.geometry.attributes.position.needsUpdate = true;
-
-    // Apply camera offset for split view
-    groupRef.current.position.x = cameraOffset;
   });
 
   return (
-    <group ref={groupRef}>
-      <Points ref={ref} positions={randomPositions} stride={3}>
-        <PointMaterial
-          transparent
-          color="#06b6d4"
-          size={0.12}
-          sizeAttenuation
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-        />
-      </Points>
-    </group>
+    <Points ref={ref} positions={randomPositions} stride={3}>
+      <PointMaterial
+        transparent
+        color="#06b6d4"
+        size={0.12}
+        sizeAttenuation
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
+    </Points>
   );
 }
 
@@ -694,6 +708,63 @@ function PlayingOverlay({ phase }) {
   );
 }
 
+/* ================= REFRESH BUTTON (FIXED ALIGNMENT) ================= */
+function RefreshButton({ phase }) {
+  const visible = phase === PHASE.PLAYING;
+
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        bottom: "24px",
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 20,
+        opacity: visible ? 1 : 0,
+        pointerEvents: visible ? "auto" : "none",
+        transition: "opacity 0.3s ease-out",
+      }}
+    >
+      <button
+        onClick={handleRefresh}
+        disabled={!visible}
+        style={{
+          background: "transparent",
+          border: "2px solid #06b6d4",
+          color: "#06b6d4",
+          padding: "10px 24px",
+          borderRadius: "8px",
+          fontSize: "clamp(0.75rem, 1.5vw, 0.95rem)",
+          fontWeight: "600",
+          letterSpacing: "0.05em",
+          cursor: visible ? "pointer" : "default",
+          transition: "all 0.3s ease",
+          textTransform: "uppercase",
+          fontFamily: "'Times New Roman', serif",
+        }}
+        onMouseEnter={(e) => {
+          if (visible) {
+            e.target.style.background = "rgba(6, 182, 212, 0.15)";
+            e.target.style.boxShadow = "0 0 12px rgba(6, 182, 212, 0.5)";
+            e.target.style.transform = "scale(1.05)";
+          }
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.background = "transparent";
+          e.target.style.boxShadow = "none";
+          e.target.style.transform = "scale(1)";
+        }}
+      >
+        ↻ REFRESH
+      </button>
+    </div>
+  );
+}
+
 /* ================= TIME UP OVERLAY ================= */
 function TimeUpOverlay({ visible, onComplete }) {
   const [progress, setProgress] = useState(0);
@@ -719,7 +790,6 @@ function TimeUpOverlay({ visible, onComplete }) {
       }
     }, 50);
 
-    // Separate timeout for completion callback
     const completionTimer = setTimeout(() => {
       onComplete();
     }, duration);
@@ -767,9 +837,10 @@ function TimeUpOverlay({ visible, onComplete }) {
           borderRadius: "50%",
           border: "2px solid rgba(6,182,212,0.28)",
           pointerEvents: "none",
-          animation: visible
-            ? "ping 2s cubic-bezier(0,0,0.2,1) infinite"
-            : "none",
+          animationName: visible ? "ping" : "none",
+          animationDuration: "2s",
+          animationTimingFunction: "cubic-bezier(0,0,0.2,1)",
+          animationIterationCount: "infinite",
         }}
       />
       <div
@@ -780,9 +851,10 @@ function TimeUpOverlay({ visible, onComplete }) {
           borderRadius: "50%",
           border: "1.5px solid rgba(6,182,212,0.2)",
           pointerEvents: "none",
-          animation: visible
-            ? "ping 2s cubic-bezier(0,0,0.2,1) infinite"
-            : "none",
+          animationName: visible ? "ping" : "none",
+          animationDuration: "2s",
+          animationTimingFunction: "cubic-bezier(0,0,0.2,1)",
+          animationIterationCount: "infinite",
           animationDelay: "0.55s",
         }}
       />
@@ -886,14 +958,12 @@ export default function UnifiedMemoryMatrix() {
   const [pattern, setPattern] = useState(() => generateComplexPattern());
   const [isShuffling, setIsShuffling] = useState(false);
   
-  // Refs to track and cleanup all timers
   const timersRef = useRef({
     zoom: null,
     shuffle: null,
     settle: null,
   });
 
-  // Cleanup all pending timers
   const cleanupTimers = useCallback(() => {
     Object.values(timersRef.current).forEach((timer) => {
       if (timer !== null) {
@@ -903,9 +973,7 @@ export default function UnifiedMemoryMatrix() {
     timersRef.current = { zoom: null, shuffle: null, settle: null };
   }, []);
 
-  // Handle START button with proper timer management
   const handleStart = useCallback(() => {
-    // Clear any existing timers first
     cleanupTimers();
 
     setPhase(PHASE.ZOOMING);
@@ -919,41 +987,33 @@ export default function UnifiedMemoryMatrix() {
 
         timersRef.current.settle = setTimeout(() => {
           setPhase(PHASE.PLAYING);
-          // Clear timer refs after successful transition
           timersRef.current = { zoom: null, shuffle: null, settle: null };
         }, TIMING.SHUFFLE_SETTLE);
       }, TIMING.SHUFFLE_DURATION);
     }, TIMING.ZOOM_DURATION);
   }, [cleanupTimers]);
 
-  // Stable callback for countdown completion
   const handleTimeUp = useCallback(() => {
     cleanupTimers();
     setPhase(PHASE.TIME_UP);
   }, [cleanupTimers]);
 
-  // Stable callback for time up overlay completion
   const handleTimeUpComplete = useCallback(() => {
     setPattern(generateComplexPattern());
     setPhase(PHASE.LANDING);
     setIsShuffling(false);
   }, []);
 
-  // Stable callback for sphere reset
   const handleSphereReset = useCallback(() => {
-    // Callback when sphere scale is reset
   }, []);
 
-  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       cleanupTimers();
     };
   }, [cleanupTimers]);
 
-  // Calculate camera offsets for split view
-  const matrixOffset = phase === PHASE.PLAYING ? -5 : 0;
-  const countdownOffset = phase === PHASE.PLAYING ? 5 : 0;
+
 
   return (
     <div
@@ -963,7 +1023,6 @@ export default function UnifiedMemoryMatrix() {
         background: "#000",
       }}
     >
-      {/* Background gradient */}
       <div
         className="absolute inset-0 pointer-events-none z-0"
         style={{
@@ -972,48 +1031,106 @@ export default function UnifiedMemoryMatrix() {
         }}
       />
 
-      {/* Main 3D Canvas */}
+      {/* GLOBAL BACKGROUND CANVAS - Always visible with DeepSpaceStars */}
       <Canvas
         style={{
           position: "absolute",
           inset: 0,
+          zIndex: 0,
         }}
         camera={{ position: [0, 0, 20], fov: 60 }}
+        gl={{ antialias: true, powerPreference: "high-performance" }}
       >
         <color attach="background" args={["#000000"]} />
-
-        {/* Always-present background stars */}
         <DeepSpaceStars />
-
-        {/* Energy sphere - ONLY mount during landing and zooming */}
-        {(phase === PHASE.LANDING || phase === PHASE.ZOOMING) && (
-          <EnergySphere phase={phase} onResetScale={handleSphereReset} />
-        )}
-
-        {/* 3D Matrix - ONLY mount during intro and playing */}
-        {(phase === PHASE.INTRO_SHUFFLE || phase === PHASE.PLAYING) && (
-          <Matrix3DScene
-            pattern={pattern}
-            isAnimating={isShuffling}
-            phase={phase}
-            cameraOffset={matrixOffset}
-          />
-        )}
-
-        {/* Countdown particles - ONLY mount during playing */}
-        {phase === PHASE.PLAYING && (
-          <CountdownParticles
-            onTimeUp={handleTimeUp}
-            cameraOffset={countdownOffset}
-          />
-        )}
       </Canvas>
 
-      {/* UI Overlays */}
+      {/* SPLIT VIEW: LEFT MATRIX + RIGHT TIMER */}
+      {phase === PHASE.PLAYING && (
+        <div className="absolute inset-0 flex" style={{ zIndex: 1 }}>
+          {/* LEFT: 3D Matrix Pattern - Left Half */}
+          <div className="w-1/2 h-full relative border-r border-cyan-500/10">
+            <Canvas
+              camera={{ position: [0, 0, 12], fov: 75 }}
+              style={{
+                background: "transparent",
+                zIndex: 1,
+              }}
+              gl={{ powerPreference: "high-performance" }}
+            >
+              <Matrix3DScene
+                pattern={pattern}
+                isAnimating={false}
+                phase={phase}
+              />
+            </Canvas>
+            {/* Text overlay */}
+            <div className="absolute top-8 left-0 right-0 text-center pointer-events-none px-4">
+              <h2
+                className="font-black tracking-widest"
+                style={{
+                  fontFamily: "'Times New Roman', serif",
+                  fontStyle: "italic",
+                  fontSize: "clamp(1.5rem, 4vw, 2.5rem)",
+                  color: "#06b6d4",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                ARRANGE THE PATTERN
+              </h2>
+              <p className="text-gray-500 text-xs mt-2">30 seconds</p>
+            </div>
+          </div>
+
+          {/* RIGHT: Timer Particle System - Right Half */}
+          <div className="w-1/2 h-full relative flex flex-col items-center justify-center">
+            <Canvas
+              camera={{ position: [0, 0, 20], fov: 60 }}
+              style={{
+                background: "transparent",
+                zIndex: 1,
+              }}
+              gl={{ powerPreference: "high-performance" }}
+            >
+              <CountdownParticles
+                onTimeUp={handleTimeUp}
+                phase={phase}
+              />
+            </Canvas>
+          </div>
+        </div>
+      )}
+
+      {/* INTRO PHASE: Transparent foreground canvas */}
+      {(phase === PHASE.LANDING || phase === PHASE.ZOOMING || phase === PHASE.INTRO_SHUFFLE) && (
+        <Canvas
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 1,
+            background: "transparent",
+          }}
+          camera={{ position: [0, 0, 20], fov: 60 }}
+          gl={{ powerPreference: "high-performance" }}
+        >
+          {(phase === PHASE.LANDING || phase === PHASE.ZOOMING) && (
+            <EnergySphere phase={phase} onResetScale={handleSphereReset} />
+          )}
+
+          {phase === PHASE.INTRO_SHUFFLE && (
+            <Matrix3DScene
+              pattern={pattern}
+              isAnimating={isShuffling}
+              phase={phase}
+            />
+          )}
+        </Canvas>
+      )}
+
       <LandingHeader phase={phase} />
       <StartButton onStart={handleStart} phase={phase} />
       <IntroShuffleOverlay phase={phase} isShuffling={isShuffling} />
-      <PlayingOverlay phase={phase} />
+      <RefreshButton phase={phase} />
       <SplitViewContainer phase={phase} />
       <TimeUpOverlay
         visible={phase === PHASE.TIME_UP}
