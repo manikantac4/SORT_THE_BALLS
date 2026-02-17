@@ -374,28 +374,34 @@ function CountdownParticles({ onTimeUp, phase }) {
       const tick = audioRef.current.tick;
       const end = audioRef.current.end;
       
-      // Unlock tick sound
-      tick.volume = 0;
+      // Set volumes first
+      tick.volume = 0.5;
+      end.volume = 0.7;
+      
+      // Preload tick sound
+      tick.currentTime = 0;
       tick.play()
         .then(() => {
           tick.pause();
           tick.currentTime = 0;
-          tick.volume = 0.5;
         })
-        .catch(() => {});
+        .catch((err) => console.warn("Tick unlock failed:", err));
 
-      // Unlock end sound
-      end.volume = 0;
+      // Preload end sound - IMPORTANT: Keep this playing briefly so browser doesn't cut it off
+      end.currentTime = 0;
       end.play()
         .then(() => {
-          end.pause();
-          end.currentTime = 0;
-          end.volume = 0.7;
-          // Audio is ready, now start countdown
-          setAudioReady(true);
+          // Let it play for a moment to establish context
+          setTimeout(() => {
+            end.pause();
+            end.currentTime = 0;
+            end.volume = 0.7;
+            // Audio is ready, now start countdown
+            setAudioReady(true);
+          }, 200); // Let sound establish for 200ms
         })
-        .catch(() => {
-          // Audio failed but allow countdown anyway
+        .catch((err) => {
+          console.warn("End unlock failed:", err);
           setAudioReady(true);
         });
     };
@@ -457,7 +463,12 @@ function CountdownParticles({ onTimeUp, phase }) {
   const [targetPositions, setTargetPositions] = useState(randomPositions);
 
   useEffect(() => {
-    // Phase change effect - nothing needed here
+    // Reset audio unlock state when going back to LANDING phase
+    if (phase === PHASE.LANDING) {
+      audioUnlockAttemptedRef.current = false;
+      setAudioReady(false);
+      setDisplayText("30");
+    }
   }, [phase]);
 
   useEffect(() => {
@@ -471,34 +482,37 @@ function CountdownParticles({ onTimeUp, phase }) {
 
     // Start countdown immediately, show 30 for 1 second then start counting
     intervalRef.current = setInterval(() => {
-      current--;
-
-      if (current >= 0) {
-        setDisplayText(String(current));
+      if (current > 0) {
         // Play tick sound on each second
         if (audioRef.current?.tick) {
+          audioRef.current.tick.volume = 0.5;
           audioRef.current.tick.currentTime = 0;
-          audioRef.current.tick.play().catch(() => {});
+          audioRef.current.tick.play().catch((err) => console.warn("Tick error:", err));
         }
-      }
-
-      if (current === 0) {
+        current--;
+        setDisplayText(String(current));
+      } else if (current === 0) {
+        // Stop the interval immediately
         clearInterval(intervalRef.current);
-        // Play end sound with small delay to ensure it plays
-        setTimeout(() => {
-          if (audioRef.current?.end) {
+        
+        // Play end sound immediately
+        console.log("Playing end sound");
+        if (audioRef.current?.end) {
+          try {
+            audioRef.current.end.volume = 0.7;
             audioRef.current.end.currentTime = 0;
-            audioRef.current.end.play().catch(() => {});
+            audioRef.current.end.play();
+          } catch (err) {
+            console.error("End sound error:", err);
           }
-          // Then trigger time up after sound starts
-          setTimeout(() => {
-            onTimeUp();
-          }, TIMING.TIME_UP_CALLBACK_DELAY);
-        }, 100);
-      }
-
-      if (current < 0) {
-        clearInterval(intervalRef.current);
+        }
+        
+        // Trigger time up - small delay to let sound start
+        setTimeout(() => {
+          onTimeUp();
+        }, 50);
+        
+        current = -1;
       }
     }, 1000);
 
@@ -709,15 +723,8 @@ function PlayingOverlay({ phase }) {
 }
 
 /* ================= REFRESH BUTTON (FIXED ALIGNMENT) ================= */
-function RefreshButton({ phase }) {
+function RefreshButton({ phase, onRefresh }) {
   const visible = phase === PHASE.PLAYING;
-
-  const handleRefresh = useCallback(() => {
-    // Reset game state instead of reloading
-    setPattern(generateComplexPattern());
-    setPhase(PHASE.LANDING);
-    setIsShuffling(false);
-  }, []);
 
   return (
     <div
@@ -734,7 +741,7 @@ function RefreshButton({ phase }) {
       className="refresh-button"
     >
       <button
-        onClick={handleRefresh}
+        onClick={onRefresh}
         disabled={!visible}
         style={{
           background: "transparent",
@@ -761,6 +768,10 @@ function RefreshButton({ phase }) {
           e.target.style.background = "transparent";
           e.target.style.boxShadow = "none";
           e.target.style.transform = "scale(1)";
+        }}
+        onDoubleClick={() => {
+          // Double click to do full page reload if needed
+          window.location.reload();
         }}
       >
         ↻ REFRESH
@@ -997,6 +1008,16 @@ export default function UnifiedMemoryMatrix() {
     }, TIMING.ZOOM_DURATION);
   }, [cleanupTimers]);
 
+  const handleRefresh = useCallback(() => {
+    // Clear any active timers first
+    cleanupTimers();
+    
+    // Reset all game state
+    setPattern(generateComplexPattern());
+    setPhase(PHASE.LANDING);
+    setIsShuffling(false);
+  }, [cleanupTimers]);
+
   const handleTimeUp = useCallback(() => {
     cleanupTimers();
     setPhase(PHASE.TIME_UP);
@@ -1158,7 +1179,7 @@ export default function UnifiedMemoryMatrix() {
       <LandingHeader phase={phase} />
       <StartButton onStart={handleStart} phase={phase} />
       <IntroShuffleOverlay phase={phase} isShuffling={isShuffling} />
-      <RefreshButton phase={phase} />
+      <RefreshButton phase={phase} onRefresh={handleRefresh} />
       <SplitViewContainer phase={phase} />
       <TimeUpOverlay
         visible={phase === PHASE.TIME_UP}
