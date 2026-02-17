@@ -726,22 +726,8 @@ function PlayingOverlay({ phase }) {
 }
 
 /* ================= REFRESH BUTTON (FIXED ALIGNMENT) ================= */
-function RefreshButton({ phase }) {
+function RefreshButton({ phase, onRefresh }) {
   const visible = phase === PHASE.PLAYING;
-
-  const handleRefresh = useCallback(() => {
-    // Clear any active timers first
-    cleanupTimers();
-    
-    // Reset all game state
-    setPattern(generateComplexPattern());
-    setPhase(PHASE.LANDING);
-    setIsShuffling(false);
-    
-    // Reset audio unlock state so user can click again
-    // Note: audioRef and audioUnlockAttemptedRef are in CountdownParticles
-    // We'll need to handle this through a reset mechanism
-  }, [cleanupTimers]);
 
   return (
     <div
@@ -758,7 +744,7 @@ function RefreshButton({ phase }) {
       className="refresh-button"
     >
       <button
-        onClick={handleRefresh}
+        onClick={onRefresh}
         disabled={!visible}
         style={{
           background: "transparent",
@@ -1186,7 +1172,7 @@ export default function UnifiedMemoryMatrix() {
       <LandingHeader phase={phase} />
       <StartButton onStart={handleStart} phase={phase} />
       <IntroShuffleOverlay phase={phase} isShuffling={isShuffling} />
-      <RefreshButton phase={phase} />
+      <RefreshButton phase={phase} onRefresh={handleRefresh} />
       <SplitViewContainer phase={phase} />
       <TimeUpOverlay
         visible={phase === PHASE.TIME_UP}
