@@ -369,7 +369,7 @@ function IntroPhase({ pattern, isShuffling }) {
 }
 
 /* ================= SPLIT VIEW: LEFT MATRIX + RIGHT TIMER ================= */
-function SplitView({ pattern, gameState, onTimeUp }) {
+function SplitView({ pattern, gameState, onTimeUp, onRefresh }) {
   const isVisible = gameState === "playing";
 
   return (
