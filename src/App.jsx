@@ -6,7 +6,7 @@ import Landingpage from "./Startingpage";
 import Loading from "./Loading";
 import FullscreenButton from "./FullscreenButton";
 import SortTheBallsBackground from "./NewStartingPage";
-
+import UnifiedMemoryMatrix from "./SingleComponent";
 function App() {
   return (
     <BrowserRouter>
@@ -15,7 +15,7 @@ function App() {
         <Route path="/" element={<Landingpage />} />
         <Route path="/loading" element={<Loading />} />
         <Route path="/game" element={<SortTheBalls />} />
-        <Route path="/new" element={<SortTheBallsBackground/>}/>
+        <Route path="/new" element={<UnifiedMemoryMatrix/>}/>
       </Routes>
 
       <FullscreenButton />
