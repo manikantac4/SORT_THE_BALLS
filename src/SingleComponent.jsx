@@ -469,40 +469,40 @@ function CountdownParticles({ onTimeUp, phase }) {
     let current = TIMING.COUNTDOWN_DURATION;
     setDisplayText(String(current));
 
-    // Start countdown after 1 second delay to show 30 first
-    const startCountdownTimeout = setTimeout(() => {
-      intervalRef.current = setInterval(() => {
-        current--;
+    // Start countdown immediately, show 30 for 1 second then start counting
+    intervalRef.current = setInterval(() => {
+      current--;
 
-        if (current >= 0) {
-          setDisplayText(String(current));
-          // Play tick sound on each second
-          if (audioRef.current?.tick) {
-            audioRef.current.tick.currentTime = 0;
-            audioRef.current.tick.play().catch(() => {});
-          }
+      if (current >= 0) {
+        setDisplayText(String(current));
+        // Play tick sound on each second
+        if (audioRef.current?.tick) {
+          audioRef.current.tick.currentTime = 0;
+          audioRef.current.tick.play().catch(() => {});
         }
+      }
 
-        if (current === 0) {
-          // Play end sound when reaching 0
+      if (current === 0) {
+        clearInterval(intervalRef.current);
+        // Play end sound with small delay to ensure it plays
+        setTimeout(() => {
           if (audioRef.current?.end) {
             audioRef.current.end.currentTime = 0;
             audioRef.current.end.play().catch(() => {});
           }
-          clearInterval(intervalRef.current);
+          // Then trigger time up after sound starts
           setTimeout(() => {
             onTimeUp();
           }, TIMING.TIME_UP_CALLBACK_DELAY);
-        }
+        }, 100);
+      }
 
-        if (current < 0) {
-          clearInterval(intervalRef.current);
-        }
-      }, 1000);
+      if (current < 0) {
+        clearInterval(intervalRef.current);
+      }
     }, 1000);
 
     return () => {
-      clearTimeout(startCountdownTimeout);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -712,9 +712,12 @@ function PlayingOverlay({ phase }) {
 function RefreshButton({ phase }) {
   const visible = phase === PHASE.PLAYING;
 
-  const handleRefresh = () => {
-    window.location.reload();
-  };
+  const handleRefresh = useCallback(() => {
+    // Reset game state instead of reloading
+    setPattern(generateComplexPattern());
+    setPhase(PHASE.LANDING);
+    setIsShuffling(false);
+  }, []);
 
   return (
     <div
@@ -728,6 +731,7 @@ function RefreshButton({ phase }) {
         pointerEvents: visible ? "auto" : "none",
         transition: "opacity 0.3s ease-out",
       }}
+      className="refresh-button"
     >
       <button
         onClick={handleRefresh}
@@ -1021,8 +1025,32 @@ export default function UnifiedMemoryMatrix() {
         position: "fixed",
         inset: 0,
         background: "#000",
+        overflow: "hidden",
       }}
     >
+      <style>{`
+        @media (max-width: 768px) {
+          .split-view-container {
+            flex-direction: column !important;
+          }
+          .split-view-left,
+          .split-view-right {
+            width: 100% !important;
+            height: 50% !important;
+          }
+          .split-view-left {
+            border-right: none !important;
+            border-bottom: 1px solid rgba(6, 182, 212, 0.1) !important;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          .refresh-button {
+            bottom: 16px !important;
+            padding: 8px 16px !important;
+          }
+        }
+      `}</style>
       <div
         className="absolute inset-0 pointer-events-none z-0"
         style={{
@@ -1047,9 +1075,9 @@ export default function UnifiedMemoryMatrix() {
 
       {/* SPLIT VIEW: LEFT MATRIX + RIGHT TIMER */}
       {phase === PHASE.PLAYING && (
-        <div className="absolute inset-0 flex" style={{ zIndex: 1 }}>
+        <div className="absolute inset-0 flex split-view-container" style={{ zIndex: 1 }}>
           {/* LEFT: 3D Matrix Pattern - Left Half */}
-          <div className="w-1/2 h-full relative border-r border-cyan-500/10">
+          <div className="split-view-left w-1/2 h-full relative border-r border-cyan-500/10">
             <Canvas
               camera={{ position: [0, 0, 12], fov: 75 }}
               style={{
@@ -1083,7 +1111,7 @@ export default function UnifiedMemoryMatrix() {
           </div>
 
           {/* RIGHT: Timer Particle System - Right Half */}
-          <div className="w-1/2 h-full relative flex flex-col items-center justify-center">
+          <div className="split-view-right w-1/2 h-full relative flex flex-col items-center justify-center">
             <Canvas
               camera={{ position: [0, 0, 20], fov: 60 }}
               style={{
