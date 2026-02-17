@@ -124,14 +124,18 @@ function CountdownParticles({ onTimeUp, isRunning }) {
   const intervalRef = useRef(null)
 
   const tickSound = useMemo(() => {
-    const audio = new Audio("/sounds/tick.mp3")
+    const audio = new Audio()
+    audio.src = "/sounds/tick.mp3"
     audio.volume = 0.5
+    audio.preload = "auto"
     return audio
   }, [])
 
   const endSound = useMemo(() => {
-    const audio = new Audio("/sounds/end.mp3")
+    const audio = new Audio()
+    audio.src = "/sounds/end.mp3"
     audio.volume = 0.7
+    audio.preload = "auto"
     return audio
   }, [])
 
@@ -216,13 +220,27 @@ function CountdownParticles({ onTimeUp, isRunning }) {
 
       if (current >= 0) {
         setDisplayText(current.toString())
-        tickSound.currentTime = 0
-        tickSound.play().catch(() => {})
+        if (current < 30) {
+          // Play tick sound
+          tickSound.currentTime = 0
+          const playPromise = tickSound.play()
+          if (playPromise !== undefined) {
+            playPromise.catch(error => {
+              console.warn("Tick sound error:", error)
+            })
+          }
+        }
       }
 
       if (current === 0) {
+        console.log("Time up triggered - playing end sound")
         endSound.currentTime = 0
-        endSound.play().catch(() => {})
+        const playPromise = endSound.play()
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            console.warn("End sound error:", error)
+          })
+        }
         setTimeout(() => onTimeUp(), 100)
       }
 
@@ -291,7 +309,7 @@ function generateComplexPattern() {
 }
 
 /* ================= FULL-SCREEN INTRO WITH 3D BALLS ================= */
-function IntroPhase({ pattern, isShuffling, onRefresh }) {
+function IntroPhase({ pattern, isShuffling }) {
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center">
       {/* 3D Canvas with animated balls */}
@@ -312,9 +330,10 @@ function IntroPhase({ pattern, isShuffling, onRefresh }) {
         }}
       >
         <h1 
-          className="font-bold text-cyan-400 tracking-widest mb-2"
+          className="font-bold tracking-widest mb-2"
           style={{
-            fontSize: "clamp(1.5rem, 5vw, 4rem)"
+            fontSize: "clamp(1.5rem, 5vw, 4rem)",
+            color: "#22c55e"
           }}
         >
           MEMORY MATRIX
@@ -323,46 +342,12 @@ function IntroPhase({ pattern, isShuffling, onRefresh }) {
           {isShuffling ? "Arranging pattern..." : "See the pattern"}
         </p>
       </div>
-
-      {/* Refresh Button */}
-      <button
-        onClick={onRefresh}
-        disabled={isShuffling}
-        className="absolute bottom-12 pointer-events-auto"
-        style={{
-          background: "transparent",
-          border: "2px solid #22c55e",
-          color: "#22c55e",
-          padding: "12px 28px",
-          borderRadius: "8px",
-          fontSize: "clamp(0.875rem, 2vw, 1rem)",
-          fontWeight: "600",
-          letterSpacing: "0.05em",
-          cursor: isShuffling ? "not-allowed" : "pointer",
-          transition: "all 0.3s ease",
-          opacity: isShuffling ? 0.5 : 1,
-          textTransform: "uppercase",
-          fontFamily: "'Times New Roman', serif",
-        }}
-        onMouseEnter={(e) => {
-          if (!isShuffling) {
-            e.target.style.background = "rgba(34, 197, 94, 0.1)";
-            e.target.style.boxShadow = "0 0 15px rgba(34, 197, 94, 0.4)";
-          }
-        }}
-        onMouseLeave={(e) => {
-          e.target.style.background = "transparent";
-          e.target.style.boxShadow = "none";
-        }}
-      >
-        ↺ Refresh
-      </button>
     </div>
   )
 }
 
 /* ================= SPLIT VIEW: LEFT MATRIX + RIGHT TIMER ================= */
-function SplitView({ pattern, gameState, onTimeUp }) {
+function SplitView({ pattern, gameState, onTimeUp, onRefresh }) {
   const isVisible = gameState === "playing"
 
   return (
@@ -376,7 +361,7 @@ function SplitView({ pattern, gameState, onTimeUp }) {
     >
       {/* LEFT: 3D Matrix Pattern */}
       <div
-        className="w-full lg:w-1/2 h-1/2 lg:h-full relative border-b lg:border-b-0 lg:border-r border-cyan-500/10"
+        className="w-full lg:w-1/2 h-1/2 lg:h-full relative border-b lg:border-b-0 lg:border-r border-green-500/10"
         style={{
           opacity: isVisible ? 1 : 0,
           transform: isVisible ? "translateX(0)" : "translateX(-100px)",
@@ -396,7 +381,7 @@ function SplitView({ pattern, gameState, onTimeUp }) {
               fontFamily: "'Times New Roman', serif",
               fontStyle: "italic",
               fontSize: "clamp(1.5rem, 4vw, 2.5rem)",
-              color: "#06b6d4",
+              color: "#22c55e",
               letterSpacing: "0.05em"
             }}
           >
@@ -405,6 +390,38 @@ function SplitView({ pattern, gameState, onTimeUp }) {
           <p className="text-gray-500 text-xs mt-2">30 seconds</p>
         </div>
       </div>
+
+      {/* CENTER: Refresh Button - positioned in the middle */}
+      <button
+        onClick={onRefresh}
+        className="absolute bottom-12 left-1/2 transform -translate-x-1/2 pointer-events-auto z-20"
+        style={{
+          background: "transparent",
+          border: "2px solid #22c55e",
+          color: "#22c55e",
+          padding: "10px 24px",
+          borderRadius: "8px",
+          fontSize: "clamp(0.75rem, 1.5vw, 0.95rem)",
+          fontWeight: "600",
+          letterSpacing: "0.05em",
+          cursor: "pointer",
+          transition: "all 0.3s ease",
+          textTransform: "uppercase",
+          fontFamily: "'Times New Roman', serif",
+        }}
+        onMouseEnter={(e) => {
+          e.target.style.background = "rgba(34, 197, 94, 0.15)";
+          e.target.style.boxShadow = "0 0 12px rgba(34, 197, 94, 0.5)";
+          e.target.style.transform = "translateX(-50%) scale(1.05)";
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.background = "transparent";
+          e.target.style.boxShadow = "none";
+          e.target.style.transform = "translateX(-50%) scale(1)";
+        }}
+      >
+        ↻ REFRESH
+      </button>
 
       {/* RIGHT: Timer Particle System */}
       <div
@@ -497,7 +514,7 @@ function TimeUpOverlay({ isVisible }) {
         <div
           className="h-full rounded-full"
           style={{
-            background: "linear-gradient(90deg, #a855f7, #06b6d4)",
+            background: "linear-gradient(90deg, #22c55e, #16a34a)",
             width: isVisible ? "100%" : "0%",
             transition: isVisible ? "width 10000ms linear" : "width 0ms",
           }}
@@ -550,22 +567,8 @@ export default function GamePage() {
   }, [navigate])
 
   const handleRefresh = useCallback(() => {
-    setPattern(generateComplexPattern())
-    setIsShuffling(true)
-    
-    // Start animation sequence again
-    const timer1 = setTimeout(() => {
-      setIsShuffling(false)
-      
-      const timer2 = setTimeout(() => {
-        setGameState("playing")
-      }, 1500)
-      
-      return () => clearTimeout(timer2)
-    }, 1500)
-
-    return () => clearTimeout(timer1)
-  }, [])
+    navigate("/")
+  }, [navigate])
 
   return (
     <div className="w-full h-screen bg-black overflow-hidden relative">
@@ -588,6 +591,7 @@ export default function GamePage() {
           pattern={pattern}
           gameState={gameState}
           onTimeUp={handleTimeUp}
+          onRefresh={handleRefresh}
         />
       )}
 
