@@ -605,7 +605,7 @@ function LandingHeader({ phase }) {
         pointerEvents: "none",
       }}
     >
-      MEMORY MATRIX
+      SORT THE BALLS
       <div style={{ marginTop: "10px" }}>
         {Array.from({ length: 20 }).map((_, i) => (
           <span
