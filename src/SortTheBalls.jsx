@@ -291,7 +291,7 @@ function generateComplexPattern() {
 }
 
 /* ================= FULL-SCREEN INTRO WITH 3D BALLS ================= */
-function IntroPhase({ pattern, isShuffling }) {
+function IntroPhase({ pattern, isShuffling, onRefresh }) {
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center">
       {/* 3D Canvas with animated balls */}
@@ -323,6 +323,40 @@ function IntroPhase({ pattern, isShuffling }) {
           {isShuffling ? "Arranging pattern..." : "See the pattern"}
         </p>
       </div>
+
+      {/* Refresh Button */}
+      <button
+        onClick={onRefresh}
+        disabled={isShuffling}
+        className="absolute bottom-12 pointer-events-auto"
+        style={{
+          background: "transparent",
+          border: "2px solid #22c55e",
+          color: "#22c55e",
+          padding: "12px 28px",
+          borderRadius: "8px",
+          fontSize: "clamp(0.875rem, 2vw, 1rem)",
+          fontWeight: "600",
+          letterSpacing: "0.05em",
+          cursor: isShuffling ? "not-allowed" : "pointer",
+          transition: "all 0.3s ease",
+          opacity: isShuffling ? 0.5 : 1,
+          textTransform: "uppercase",
+          fontFamily: "'Times New Roman', serif",
+        }}
+        onMouseEnter={(e) => {
+          if (!isShuffling) {
+            e.target.style.background = "rgba(34, 197, 94, 0.1)";
+            e.target.style.boxShadow = "0 0 15px rgba(34, 197, 94, 0.4)";
+          }
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.background = "transparent";
+          e.target.style.boxShadow = "none";
+        }}
+      >
+        ↺ Refresh
+      </button>
     </div>
   )
 }
@@ -515,6 +549,24 @@ export default function GamePage() {
     }, 10000)
   }, [navigate])
 
+  const handleRefresh = useCallback(() => {
+    setPattern(generateComplexPattern())
+    setIsShuffling(true)
+    
+    // Start animation sequence again
+    const timer1 = setTimeout(() => {
+      setIsShuffling(false)
+      
+      const timer2 = setTimeout(() => {
+        setGameState("playing")
+      }, 1500)
+      
+      return () => clearTimeout(timer2)
+    }, 1500)
+
+    return () => clearTimeout(timer1)
+  }, [])
+
   return (
     <div className="w-full h-screen bg-black overflow-hidden relative">
       {/* Background gradient */}
@@ -527,7 +579,7 @@ export default function GamePage() {
 
       {/* PHASE 1: Full-screen intro with 3D shuffle animation */}
       {gameState === "intro" && (
-        <IntroPhase pattern={pattern} isShuffling={isShuffling} />
+        <IntroPhase pattern={pattern} isShuffling={isShuffling} onRefresh={handleRefresh} />
       )}
 
       {/* PHASE 2: Split view (left 3D matrix, right timer) */}
