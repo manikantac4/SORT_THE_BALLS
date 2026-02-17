@@ -28,16 +28,16 @@
 // export default App;
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-
+import './App.css'
 import FullscreenButton from "./FullscreenButton";
-
+import UnifiedMemoryMatrixTwo from "./SingleComponentTwo";
 import UnifiedMemoryMatrix from "./SingleComponent";
 function App() {
   return (
     <BrowserRouter>
 
       <Routes>
-        <Route path="/" element={<UnifiedMemoryMatrix/>}/>
+        <Route path="/" element={<UnifiedMemoryMatrixTwo/>}/>
       </Routes>
 
       <FullscreenButton />
