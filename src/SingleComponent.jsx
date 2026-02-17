@@ -469,40 +469,37 @@ function CountdownParticles({ onTimeUp, phase }) {
     let current = TIMING.COUNTDOWN_DURATION;
     setDisplayText(String(current));
 
-    // Start countdown after 1 second delay to show 30 first
-    const startCountdownTimeout = setTimeout(() => {
-      intervalRef.current = setInterval(() => {
-        current--;
+    // Start countdown immediately, show 30 for 1 second then start counting
+    intervalRef.current = setInterval(() => {
+      current--;
 
-        if (current >= 0) {
-          setDisplayText(String(current));
-          // Play tick sound on each second
-          if (audioRef.current?.tick) {
-            audioRef.current.tick.currentTime = 0;
-            audioRef.current.tick.play().catch(() => {});
-          }
+      if (current >= 0) {
+        setDisplayText(String(current));
+        // Play tick sound on each second
+        if (audioRef.current?.tick) {
+          audioRef.current.tick.currentTime = 0;
+          audioRef.current.tick.play().catch(() => {});
         }
+      }
 
-        if (current === 0) {
-          // Play end sound when reaching 0
-          if (audioRef.current?.end) {
-            audioRef.current.end.currentTime = 0;
-            audioRef.current.end.play().catch(() => {});
-          }
-          clearInterval(intervalRef.current);
-          setTimeout(() => {
-            onTimeUp();
-          }, TIMING.TIME_UP_CALLBACK_DELAY);
+      if (current === 0) {
+        // Play end sound when reaching 0
+        if (audioRef.current?.end) {
+          audioRef.current.end.currentTime = 0;
+          audioRef.current.end.play().catch(() => {});
         }
+        clearInterval(intervalRef.current);
+        setTimeout(() => {
+          onTimeUp();
+        }, TIMING.TIME_UP_CALLBACK_DELAY);
+      }
 
-        if (current < 0) {
-          clearInterval(intervalRef.current);
-        }
-      }, 1000);
+      if (current < 0) {
+        clearInterval(intervalRef.current);
+      }
     }, 1000);
 
     return () => {
-      clearTimeout(startCountdownTimeout);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -712,9 +709,12 @@ function PlayingOverlay({ phase }) {
 function RefreshButton({ phase }) {
   const visible = phase === PHASE.PLAYING;
 
-  const handleRefresh = () => {
-    window.location.reload();
-  };
+  const handleRefresh = useCallback(() => {
+    // Reset game state instead of reloading
+    setPattern(generateComplexPattern());
+    setPhase(PHASE.LANDING);
+    setIsShuffling(false);
+  }, []);
 
   return (
     <div
