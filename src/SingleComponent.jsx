@@ -560,12 +560,13 @@ function CountdownParticles({ onTimeUp, phase }) {
 /* ================= PATTERN GENERATOR ================= */
 function generateComplexPattern() {
   const colors = [
-    { name: "red", hex: "#EF4444", bg: "bg-red-500" },
-    { name: "blue", hex: "#3B82F6", bg: "bg-blue-500" },
-    { name: "green", hex: "#10B981", bg: "bg-green-500" },
-    { name: "purple", hex: "#A855F7", bg: "bg-purple-500" },
-    { name: "yellow", hex: "#FBBF24", bg: "bg-yellow-400" },
-  ];
+  { name: "orange", hex: "#F97316", bg: "bg-orange-500" },
+  { name: "white", hex: "#FFFFFF", bg: "bg-white" },
+  { name: "pink", hex: "#EC4899", bg: "bg-pink-500" },
+  { name: "yellow", hex: "#FBBF24", bg: "bg-yellow-400" },
+  { name: "green", hex: "#10B981", bg: "bg-green-500" },
+];
+
 
   const colorArray = [];
   colors.forEach((color) => {
