@@ -544,29 +544,59 @@ function CountdownParticles({ onTimeUp, phase, audioCtxRef }) {
 /* ================= PATTERN GENERATOR ================= */
 function generateComplexPattern() {
   const colors = [
-  { name: "orange", hex: "#F97316", bg: "bg-orange-500" },
-  { name: "white", hex: "#FFFFFF", bg: "bg-white" },
-  { name: "pink", hex: "#EC4899", bg: "bg-pink-500" },
-  { name: "yellow", hex: "#FBBF24", bg: "bg-yellow-400" },
-  { name: "green", hex: "#10B981", bg: "bg-green-500" },
-];
+    { name: "white", hex: "#FFFFFF", bg: "bg-white" },
+    { name: "pink", hex: "#EC4899", bg: "bg-pink-500" },
+    { name: "yellow", hex: "#FBBF24", bg: "bg-yellow-400" },
+    { name: "orange", hex: "#F97316", bg: "bg-orange-500" },
+    { name: "green", hex: "#10B981", bg: "bg-green-500" },
+  ];
 
+  const grid = [];
 
-  const colorArray = [];
-  colors.forEach((color) => {
-    for (let i = 0; i < 5; i++) {
-      colorArray.push(color);
+  for (let row = 0; row < 5; row++) {
+    const dominantColor = colors[row];
+    const otherColors = colors.filter((_, i) => i !== row);
+
+    let rowArray = [];
+
+    // 🔹 Step 1: Dominant appears 1 or 2 times randomly
+    const dominantCount = Math.random() < 0.5 ? 1 : 2;
+
+    for (let i = 0; i < dominantCount; i++) {
+      rowArray.push(dominantColor);
     }
-  });
 
-  for (let pass = 0; pass < 3; pass++) {
-    for (let i = colorArray.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [colorArray[i], colorArray[j]] = [colorArray[j], colorArray[i]];
+    // 🔹 Step 2: Fill remaining slots with random other colors
+    while (rowArray.length < 5) {
+      const randomOther =
+        otherColors[Math.floor(Math.random() * otherColors.length)];
+      rowArray.push(randomOther);
     }
+
+    // 🔹 Step 3: Shuffle until no adjacent duplicates
+    let valid = false;
+
+    while (!valid) {
+      // Shuffle
+      for (let i = rowArray.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [rowArray[i], rowArray[j]] = [rowArray[j], rowArray[i]];
+      }
+
+      // Check adjacency
+      valid = true;
+      for (let i = 1; i < rowArray.length; i++) {
+        if (rowArray[i].name === rowArray[i - 1].name) {
+          valid = false;
+          break;
+        }
+      }
+    }
+
+    grid.push(...rowArray);
   }
 
-  return colorArray;
+  return grid;
 }
 
 /* ================= LANDING HEADER ================= */

@@ -32,12 +32,14 @@ import './App.css'
 import FullscreenButton from "./FullscreenButton";
 import UnifiedMemoryMatrixTwo from "./SingleComponentTwo";
 import UnifiedMemoryMatrix from "./SingleComponent";
+import Sample from "./sample1";
 function App() {
   return (
     <BrowserRouter>
 
       <Routes>
         <Route path="/" element={<UnifiedMemoryMatrixTwo/>}/>
+        <Route path ="/new" element={<Sample/>}/>
       </Routes>
 
       <FullscreenButton />
