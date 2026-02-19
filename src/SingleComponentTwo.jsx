@@ -546,11 +546,7 @@ function generateComplexPattern() {
   const colors = [
     { name: "white", hex: "#FFFFFF", bg: "bg-white" },
     { name: "pink", hex: "#EC4899", bg: "bg-pink-500" },
-   { 
-  name: "yellow", 
-  hex: "#FBBF24", 
-  bg: "bg-gradient-to-r from-yellow-300 via-yellow-400 to-amber-500" 
-},
+    { name: "yellow", hex: "#FBBF24", bg: "bg-yellow-400" },
     { name: "orange", hex: "#F97316", bg: "bg-orange-500" },
     { name: "green", hex: "#10B981", bg: "bg-green-500" },
   ];
