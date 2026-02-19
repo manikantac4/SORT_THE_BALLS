@@ -551,39 +551,56 @@ function generateComplexPattern() {
     { name: "green", hex: "#10B981", bg: "bg-green-500" },
   ];
 
+  // 🔹 Track how many times each color is used
+  const colorCount = {
+    white: 0,
+    pink: 0,
+    yellow: 0,
+    orange: 0,
+    green: 0,
+  };
+
   const grid = [];
 
   for (let row = 0; row < 5; row++) {
     const dominantColor = colors[row];
-    const otherColors = colors.filter((_, i) => i !== row);
-
     let rowArray = [];
 
-    // 🔹 Step 1: Dominant appears 1 or 2 times randomly
-    const dominantCount = Math.random() < 0.5 ? 1 : 2;
+    // 🔹 Dominant appears 1 or 2 times (if available)
+    let dominantCount = Math.random() < 0.5 ? 1 : 2;
+
+    // Don't exceed 5 total
+    if (colorCount[dominantColor.name] + dominantCount > 5) {
+      dominantCount = 5 - colorCount[dominantColor.name];
+    }
 
     for (let i = 0; i < dominantCount; i++) {
       rowArray.push(dominantColor);
+      colorCount[dominantColor.name]++;
     }
 
-    // 🔹 Step 2: Fill remaining slots with random other colors
+    // 🔹 Fill remaining spots
     while (rowArray.length < 5) {
-      const randomOther =
-        otherColors[Math.floor(Math.random() * otherColors.length)];
-      rowArray.push(randomOther);
+      const availableColors = colors.filter(
+        (c) => colorCount[c.name] < 5
+      );
+
+      const randomColor =
+        availableColors[Math.floor(Math.random() * availableColors.length)];
+
+      rowArray.push(randomColor);
+      colorCount[randomColor.name]++;
     }
 
-    // 🔹 Step 3: Shuffle until no adjacent duplicates
+    // 🔹 Shuffle until no adjacent duplicates
     let valid = false;
 
     while (!valid) {
-      // Shuffle
       for (let i = rowArray.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [rowArray[i], rowArray[j]] = [rowArray[j], rowArray[i]];
       }
 
-      // Check adjacency
       valid = true;
       for (let i = 1; i < rowArray.length; i++) {
         if (rowArray[i].name === rowArray[i - 1].name) {
@@ -598,6 +615,7 @@ function generateComplexPattern() {
 
   return grid;
 }
+
 
 /* ================= LANDING HEADER ================= */
 function LandingHeader({ phase }) {
