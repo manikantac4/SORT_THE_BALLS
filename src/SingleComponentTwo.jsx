@@ -16,6 +16,7 @@ const PHASE = {
   INTRO_SHUFFLE: "introShuffle",
   PLAYING: "playing",
   TIME_UP: "timeup",
+    RESULT: "result", // 🔥 NEW
 };
 
 const TIMING = {
@@ -933,6 +934,73 @@ function TimeUpOverlay({ visible, onComplete }) {
     </div>
   );
 }
+function ResultScreen({ pattern, onReturnHome }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+      style={{
+        background: "rgba(0,0,0,0.95)",
+        color: "#fff",
+      }}
+    >
+      <h1
+        style={{
+          fontSize: "clamp(2rem,6vw,4rem)",
+          color: "#06b6d4",
+          marginBottom: "30px",
+          letterSpacing: "0.1em",
+        }}
+      >
+        CORRECT PATTERN
+      </h1>
+
+      {/* Pattern Grid */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(5, 60px)",
+          gap: "12px",
+          marginBottom: "40px",
+        }}
+      >
+        {pattern.map((color, index) => (
+          <div
+            key={index}
+            style={{
+              width: "60px",
+              height: "60px",
+              borderRadius: "12px",
+              background: color.hex,
+              boxShadow: `0 0 15px ${color.hex}`,
+            }}
+          />
+        ))}
+      </div>
+
+      <button
+        onClick={onReturnHome}
+        style={{
+          padding: "12px 40px",
+          fontSize: "18px",
+          background: "transparent",
+          border: "2px solid #06b6d4",
+          color: "#06b6d4",
+          borderRadius: "8px",
+          cursor: "pointer",
+          transition: "0.3s",
+        }}
+        onMouseEnter={(e) => {
+          e.target.style.background = "rgba(6,182,212,0.2)";
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.background = "transparent";
+        }}
+      >
+        RETURN TO HOME
+      </button>
+    </div>
+  );
+}
 
 /* ================= SPLIT VIEW CONTAINER ================= */
 function SplitViewContainer({ phase }) {
@@ -1040,11 +1108,8 @@ export default function UnifiedMemoryMatrixTwo() {
   }, [cleanupTimers]);
 
   const handleTimeUpComplete = useCallback(() => {
-    setPattern(generateComplexPattern());
-    setPhase(PHASE.LANDING);
-    setIsShuffling(false);
-    setPlayingVisible(false);
-  }, []);
+  setPhase(PHASE.RESULT);
+}, []);
 
   const handleSphereReset = useCallback(() => {}, []);
 
@@ -1053,6 +1118,12 @@ export default function UnifiedMemoryMatrixTwo() {
       cleanupTimers();
     };
   }, [cleanupTimers]);
+  const handleReturnHome = useCallback(() => {
+  setPattern(generateComplexPattern());
+  setPhase(PHASE.LANDING);
+  setIsShuffling(false);
+  setPlayingVisible(false);
+}, []);
 
   return (
     <div
@@ -1231,9 +1302,16 @@ export default function UnifiedMemoryMatrixTwo() {
       <RefreshButton phase={phase} onRefresh={handleRefresh} />
       <SplitViewContainer phase={phase} />
       <TimeUpOverlay
-        visible={phase === PHASE.TIME_UP}
-        onComplete={handleTimeUpComplete}
-      />
+  visible={phase === PHASE.TIME_UP}
+  onComplete={handleTimeUpComplete}
+/>
+
+{phase === PHASE.RESULT && (
+  <ResultScreen
+    pattern={pattern}
+    onReturnHome={handleReturnHome}
+  />
+)}
     </div>
   );
 }
